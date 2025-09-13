@@ -1,49 +1,36 @@
+import OpenAI from "openai";
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { prompt } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({ error: 'Missing prompt in request body' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-        'OpenAI-Project': process.env.OPENAI_PROJECT_ID, // Optional if not using sk-proj key
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert at generating detailed and professional RAMS responses for construction tasks.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          }
-        ],
-        temperature: 0.5,
-      }),
-    });
+    const { prompt, temperature, max_tokens } = req.body;
 
-    const data = await openaiRes.json();
-
-    if (!data.choices || !data.choices[0]) {
-      throw new Error('No choices returned from OpenAI');
+    if (!prompt || typeof prompt !== "string") {
+      return res.status(400).json({ error: "Missing or invalid prompt" });
     }
 
-    const response = data.choices[0].message.content.trim();
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
-    res.status(200).json({ response });
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini", // or "gpt-4o"
+      messages: [{ role: "user", content: prompt }],
+      temperature: typeof temperature === "number" ? temperature : 0.2,
+      max_tokens: typeof max_tokens === "number" ? max_tokens : 1600,
+    });
+
+    res.status(200).json({
+      response: completion.choices[0].message.content,
+    });
   } catch (error) {
-    console.error('OpenAI API error:', error);
-    res.status(500).json({ error: 'Failed to generate RAMS' });
+    console.error("OpenAI API error:", error);
+    res.status(500).json({
+      error: "Failed to fetch completion",
+      details: error.message,
+    });
   }
 }
