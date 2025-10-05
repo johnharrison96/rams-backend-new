@@ -16,11 +16,34 @@ export default async function handler(req, res) {
     }
 
     const model = "gpt-4o";
-    const temperature = 0;     // consistent wording
+    const temperature = 0.2;
     const top_p = 1;
     const seed = 42;
 
-    // --- helpers ---
+    // 1️⃣ Sequence of Works — natural, same as ChatGPT
+    const promptSeq = `${task} sequence of works`;
+
+    // 2️⃣ Plant & Materials — keep your previous perfect version
+    const promptMat = `List the specific plant, tools, access equipment, and materials required to carry out ${task} on a construction site. Use a simple bullet-point list only. No sentences, commentary, or descriptions.`;
+
+    // 3️⃣ PPE — keep your detailed, legally compliant version (EN/BS standards + protection levels)
+    const promptPpe = `
+For the task "${task}", list the Personal Protective Equipment (PPE) required.
+Each line must include both the protection level/type and the relevant EN or BS standard.
+Keep it concise and formatted as a bullet-point list suitable for RAMS submission.
+Example:
+- Safety boots (EN ISO 20345, S1P or SB-P)
+- Safety helmet (EN 397)
+- Safety glasses (EN 166, impact grade F)
+- High-visibility clothing (EN ISO 20471, Class 2 or 3)
+- Cut-resistant gloves (EN 388, cut level 5)
+- Respiratory protection (FFP3, EN 149)
+- Hearing protection (EN 352, SNR ≥ 30 dB)
+- Fall arrest harness (EN 361)
+- Protective overalls (EN 13034, Type 6)
+Output only the bullet list.
+`.trim();
+
     const ask = async (content, max_tokens) => {
       const run = async () => {
         const r = await client.chat.completions.create({
@@ -37,53 +60,18 @@ export default async function handler(req, res) {
       catch { await new Promise(r => setTimeout(r, 500)); return await run(); }
     };
 
-    // Remove common Markdown leftovers and openings like "Certainly!"
-    const clean = (txt) => (txt || "")
-      .replace(/^\s*certainly!.*\n?/i, "")
-      .replace(/```[\s\S]*?```/g, "")     // code fences
-      .replace(/\*\*/g, "")               // bold markers
-      .replace(/__|~~/g, "")              // underline/strike
-      .replace(/^-{3,}\s*$/gm, "")        // --- rules
-      .trim();
+    const clean = (txt) =>
+      (txt || "")
+        .replace(/```[\s\S]*?```/g, "")
+        .replace(/\*\*/g, "")
+        .replace(/__|~~/g, "")
+        .replace(/^\s*(Certainly|Sure|Of course)[!.,\s-]*/i, "")
+        .trim();
 
-    // 1) Sequence of Works — plain text, no Markdown
-    const promptSeq = `
-For the task "${task}", write a professional RAMS Sequence of Works.
-
-Formatting rules (strict):
-- PLAIN TEXT ONLY. No Markdown, no asterisks, no bold, no headings with **, no code blocks.
-- Start directly with "1. ..." (do not add an intro sentence).
-- Use numbered stages: 1., 2., 3., ...
-- Under each stage provide 2–5 short bullet points, each starting with "- ".
-- Keep bullets concise and actionable (site-ready).
-- End after the last stage (no summary paragraph).
-`.trim();
-
-    // 2) Plant & Materials — task-focused list (no sentences)
-    const promptMat = `List the specific plant, tools, access equipment, consumables, and materials required to carry out ${task} on a construction site. Use a simple bullet-point list only (one item per line). No sentences or commentary.`;
-
-    // 3) PPE — include levels + EN/BS standards (concise)
-    const promptPpe = `
-For the task "${task}", list the Personal Protective Equipment (PPE) required.
-Each line must include the protection level/type and the relevant EN/BS standard in brackets.
-Keep it concise; bullet list only.
-
-Example style (tailor to the task):
-- Safety boots (EN ISO 20345, S1P or SB-P)
-- Safety helmet (EN 397)
-- Safety glasses (EN 166, impact grade F)
-- High-visibility clothing (EN ISO 20471, Class 2 or 3)
-- Cut-resistant gloves (EN 388, cut level 5)
-- Respiratory protection (FFP3, EN 149)
-- Hearing protection (EN 352, SNR ≥ 30 dB)
-- Fall arrest harness where required (EN 361)
-- Protective overalls (EN 13034, Type 6)
-Output only the bullet list.
-`.trim();
-
+    // Run all three prompts in parallel
     const [sRaw, mRaw, pRaw] = await Promise.all([
-      ask(promptSeq, 1400),
-      ask(promptMat, 600),
+      ask(promptSeq, 2000),
+      ask(promptMat, 800),
       ask(promptPpe, 900),
     ]);
 
@@ -92,9 +80,11 @@ Output only the bullet list.
       plantAndMaterials: clean(mRaw),
       ppe: clean(pRaw),
     });
-
   } catch (err) {
     console.error("API error:", err);
-    return res.status(500).json({ error: "Failed to generate RAMS", details: err?.message || "Unknown error" });
+    return res.status(500).json({
+      error: "Failed to generate RAMS",
+      details: err?.message || "Unknown error",
+    });
   }
 }
