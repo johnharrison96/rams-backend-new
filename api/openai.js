@@ -1,5 +1,5 @@
-// ✅ Backend for RAMS Generator — professional, detailed, and stable
-// Extended timeout for full responses
+// ✅ RAMS Generator Backend (ChatGPT-style results)
+// Extended timeout for full detailed responses
 export const config = { maxDuration: 60 };
 
 import OpenAI from "openai";
@@ -19,23 +19,33 @@ export default async function handler(req, res) {
       throw new Error("Missing OPENAI_API_KEY");
     }
 
-    // 🧱 Prompts
-    const promptSeq = `Create a detailed and professional sequence of works for ${task}, written in the same style as a full RAMS document. Use numbered sections and bullet points under each stage.`;
+    // Prompts
+    const promptSeq = `${task} sequence of works`;
     const promptMat = `Create a basic bullet-point list of plant and materials required for ${task}. Keep it simple — just the item names, no descriptions or comments.`;
     const promptPpe = `Create a list of Personal Protective Equipment (PPE) for ${task}, keeping it clear, concise, and operative-friendly. No UK standard codes needed.`;
 
-    const model = "gpt-4o";
+    const model = "gpt-4o"; // same family as ChatGPT-5 style
     const temperature = 0.2;
 
-    const ask = (content, max_tokens) =>
-      client.chat.completions.create({
-        model,
-        messages: [{ role: "user", content }],
-        temperature,
-        max_tokens,
-      }).then(r => r.choices?.[0]?.message?.content?.trim() ?? "");
+    // Helper function
+    const ask = (prompt, max_tokens) =>
+      client.chat.completions
+        .create({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are ChatGPT, a professional construction assistant. Always produce detailed, clear, and well-structured RAMS content using numbered stages and bullet points — just as ChatGPT does in chat.",
+            },
+            { role: "user", content: prompt },
+          ],
+          temperature,
+          max_tokens,
+        })
+        .then((r) => r.choices?.[0]?.message?.content?.trim() ?? "");
 
-    // Run all prompts together
+    // Run all three prompts in parallel
     const [sequenceOfWorks, plantAndMaterials, ppe] = await Promise.all([
       ask(promptSeq, 2200),
       ask(promptMat, 600),
@@ -46,7 +56,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("OpenAI API error:", err);
     return res.status(500).json({
-      error: "Failed to generate content",
+      error: "Failed to generate RAMS",
       details: err?.message || "Unknown error",
     });
   }
