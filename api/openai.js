@@ -1,4 +1,4 @@
-// Vercel Pro: allow up to 60s for detailed generations
+// Allow longer processing for more detailed responses
 export const config = { maxDuration: 60 };
 
 import OpenAI from "openai";
@@ -16,36 +16,31 @@ export default async function handler(req, res) {
     }
 
     const model = "gpt-4o";
-    const temperature = 0;
+    const temperature = 0.2;
     const top_p = 1;
     const seed = 42;
 
-    // 1) Sequence of Works — keep natural “chat-style” phrasing
-    const promptSeq = `${task} sequence of works`;
+    // 1️⃣ Sequence of Works
+    const promptSeq = `${task} sequence of works — create a detailed, step-by-step sequence with numbered stages and clear bullet points under each stage. Write it as if for a professional RAMS document.`;
 
-    // 2) Plant & Materials — basic list ONLY (no comments/sentences)
-    const promptMat = `${task} plant and materials — Provide a basic bullet-point list ONLY. No comments, no descriptions, no sentences. One item per line.`;
+    // 2️⃣ Plant & Materials (cleaner and task-focused)
+    const promptMat = `List the specific plant, tools, access equipment, and materials required to carry out ${task} on a construction site. Use a simple bullet-point list only. No sentences, commentary, or extra descriptions.`;
 
-    // 3) PPE — include EN/BS standards AND specific protection levels
-    //    Keep it concise and submission-ready for main contractors.
+    // 3️⃣ PPE (legally compliant with EN standards and protection levels)
     const promptPpe = `
-${task} personal protection equipment (PPE) — Produce a concise bullet list suitable for RAMS submission to a main contractor.
-REQUIREMENTS:
-- Each line: item name + protection level/type + EN/BS standard in brackets.
-- Be specific (examples: “FFP3”, “Cut level 5”, “Class 3 hi-vis”, “SNR 30 dB”, “toe & midsole protection SB-P/S1P”).
-- No extra commentary or long sentences.
-
-Example style (examples only — tailor to the task):
+For the task "${task}", list the Personal Protective Equipment (PPE) required.
+Each item must include both the protection level/type and the relevant EN or BS standard.
+Keep it concise and formatted as a bullet-point list suitable for RAMS submission.
+Example format:
 - Safety boots (EN ISO 20345, S1P or SB-P)
 - Safety helmet (EN 397)
 - Safety glasses (EN 166, impact grade F)
 - High-visibility clothing (EN ISO 20471, Class 2 or 3)
 - Cut-resistant gloves (EN 388, cut level 5)
-- Respiratory protection (FFP3, EN 149)   // prefer FFP3 for dust/silica
+- Respiratory protection (FFP3, EN 149)
 - Hearing protection (EN 352, SNR ≥ 30 dB)
-- Fall arrest harness where required (EN 361)
+- Fall arrest harness (EN 361)
 - Protective overalls (EN 13034, Type 6)
-
 Output only the bullet list.
 `.trim();
 
@@ -64,12 +59,11 @@ Output only the bullet list.
       try {
         return await run();
       } catch (e1) {
-        await new Promise(r => setTimeout(r, 600)); // simple backoff
+        await new Promise(r => setTimeout(r, 600)); // small retry delay
         return await run();
       }
     };
 
-    // Token budgets
     const [sequenceOfWorks, plantAndMaterials, ppe] = await Promise.all([
       ask(promptSeq, 1400),
       ask(promptMat, 600),
