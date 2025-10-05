@@ -15,28 +15,38 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing or invalid task" });
     }
 
-    // Use same family as this chat for similar tone/format
     const model = "gpt-4o";
     const temperature = 0;
     const top_p = 1;
     const seed = 42;
 
-    // — Prompts —
-    // 1) Chat-style SoW (exactly like you'd type here)
+    // 1) Sequence of Works — keep natural “chat-style” phrasing
     const promptSeq = `${task} sequence of works`;
 
-    // 2) Plant & Materials: list-only (no comments/sentences)
+    // 2) Plant & Materials — basic list ONLY (no comments/sentences)
     const promptMat = `${task} plant and materials — Provide a basic bullet-point list ONLY. No comments, no descriptions, no sentences. One item per line.`;
 
-    // 3) PPE: UK standards BASIC (concise item + standard)
+    // 3) PPE — include EN/BS standards AND specific protection levels
+    //    Keep it concise and submission-ready for main contractors.
     const promptPpe = `
-${task} personal protection equipment (PPE) — Provide a concise bullet-point list for a formal RAMS submission.
-Include relevant UK/EN standards in brackets, with minimal text. One item per line.
-Example style:
-- Safety boots (EN ISO 20345)
+${task} personal protection equipment (PPE) — Produce a concise bullet list suitable for RAMS submission to a main contractor.
+REQUIREMENTS:
+- Each line: item name + protection level/type + EN/BS standard in brackets.
+- Be specific (examples: “FFP3”, “Cut level 5”, “Class 3 hi-vis”, “SNR 30 dB”, “toe & midsole protection SB-P/S1P”).
+- No extra commentary or long sentences.
+
+Example style (examples only — tailor to the task):
+- Safety boots (EN ISO 20345, S1P or SB-P)
 - Safety helmet (EN 397)
-- Safety glasses (EN 166)
-Avoid extra commentary or long sentences.
+- Safety glasses (EN 166, impact grade F)
+- High-visibility clothing (EN ISO 20471, Class 2 or 3)
+- Cut-resistant gloves (EN 388, cut level 5)
+- Respiratory protection (FFP3, EN 149)   // prefer FFP3 for dust/silica
+- Hearing protection (EN 352, SNR ≥ 30 dB)
+- Fall arrest harness where required (EN 361)
+- Protective overalls (EN 13034, Type 6)
+
+Output only the bullet list.
 `.trim();
 
     const ask = async (content, max_tokens) => {
@@ -53,17 +63,17 @@ Avoid extra commentary or long sentences.
       };
       try {
         return await run();
-      } catch {
+      } catch (e1) {
         await new Promise(r => setTimeout(r, 600)); // simple backoff
         return await run();
       }
     };
 
-    // Token budgets (plenty for detail, still safe under Pro’s window)
+    // Token budgets
     const [sequenceOfWorks, plantAndMaterials, ppe] = await Promise.all([
       ask(promptSeq, 1400),
       ask(promptMat, 600),
-      ask(promptPpe, 800),
+      ask(promptPpe, 900),
     ]);
 
     return res.status(200).json({ sequenceOfWorks, plantAndMaterials, ppe });
